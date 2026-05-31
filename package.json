@@ -1,0 +1,15 @@
+{
+  "name": "thermal-test-analyzer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI-assisted analyzer for thermal imaging effectiveness test logs: anomaly summaries, regression detection, and run-vs-run comparison.",
+  "scripts": {
+    "install:all": "npm --prefix server install && npm --prefix web install",
+    "generate-samples": "node server/scripts/generate-samples.mjs",
+    "dev:server": "npm --prefix server run dev",
+    "dev:web": "npm --prefix web run dev",
+    "dev": "npm run dev:server & npm run dev:web",
+    "build": "npm --prefix server run build && npm --prefix web run build",
+    "typecheck": "npm --prefix server run typecheck && npm --prefix web run typecheck"
+  }
+}
