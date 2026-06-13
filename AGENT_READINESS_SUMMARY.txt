@@ -1,0 +1,114 @@
+==============================================================================
+AGENT READINESS - REPORT & FIX SUMMARY
+Repository: https://github.com/michaelhannigan/thermal-test-analyzer.git
+==============================================================================
+
+------------------------------------------------------------------------------
+1. READINESS REPORT (initial evaluation)
+------------------------------------------------------------------------------
+
+Overall Level : Level 1
+Score         : 8.1% pass rate
+Primary lang  : TypeScript (ESM)
+
+Applications identified (2):
+  1. server - Express/TypeScript REST API that parses thermal test CSV logs,
+     runs anomaly/regression analysis, and generates AI summaries via
+     OpenAI/Anthropic/mock providers.
+  2. web    - React + Vite single-page app for uploading thermal test runs and
+     visualizing anomalies, run comparisons, and AI summaries.
+
+Scoring notes:
+  - 82 criteria total (44 repository-scope, 38 application-scope).
+  - Application-scope denominators = 2 (one per app).
+  - Skipped (null) criteria are excluded from scoring.
+
+What was already passing:
+  - type_check (2/2)        - both tsconfig.json set "strict": true
+  - strict_typing (2/2)     - TypeScript strict mode in both apps
+  - deps_pinned (1/1)       - package-lock.json committed in both apps
+  - secrets_management (1/1)- API keys via env vars, masked, .env gitignored
+  - health_checks (1/2)     - server exposes GET /api/health
+  - dead_code_detection (1/2) - web tsconfig noUnusedLocals/noUnusedParameters
+
+Key gaps (58 failing signals) spanned:
+  - Style & Validation: no linter, no formatter, no pre-commit hooks, no
+    naming/complexity/duplicate/dead-code/tech-debt tooling.
+  - Build/Workflow: no monorepo tooling, no dependency-update automation,
+    no release automation, no feature flags, no agentic-dev evidence.
+  - Testing: no unit/integration tests, no test scripts, no coverage.
+  - Documentation: no README, no AGENTS.md, no API schema, no architecture docs.
+  - Dev Environment: no devcontainer, no .env.example.
+  - Observability: no structured logging, tracing, metrics, error tracking.
+  - Security/Hygiene: no CODEOWNERS, incomplete .gitignore, no issue/PR
+    templates, no scanning.
+
+Full report: https://app.factory.ai/analytics/readiness/https%253A%252F%252Fgithub.com%252Fmichaelhannigan%252Fthermal-test-analyzer
+
+------------------------------------------------------------------------------
+2. FIXES APPLIED
+------------------------------------------------------------------------------
+
+FIX #1 - Linter Configuration (lint_config): 0/2 -> 2/2
+  Category: Style & Validation
+
+  Changes:
+    - server/eslint.config.js (new): ESLint 9 flat config using @eslint/js
+      recommended + typescript-eslint recommended, with rules for
+      no-unused-vars (^_ ignore), consistent-type-imports, eqeqeq, no-var,
+      prefer-const. Node globals.
+    - web/eslint.config.js (new): same base plus eslint-plugin-react-hooks and
+      eslint-plugin-react-refresh for React-specific rules. Browser globals.
+    - server/package.json & web/package.json: added "lint" scripts
+      (eslint src [scripts]) and ESLint dev dependencies.
+    - package.json (root): added "lint" running both apps.
+    - server/src/ai/config.ts: changed "let config" -> "const config"
+      (a real issue the new linter caught - binding mutated but never reassigned).
+
+  Verification:
+    - Installed deps in both apps; `npm run lint` passes cleanly (exit 0).
+    - Note: eslint-plugin-react-hooks bumped to v5 for ESLint 9 compatibility.
+
+FIX #2 - Duplicate Code Detection (duplicate_code_detection): 0/2 -> 2/2
+  Category: Style & Validation
+
+  Changes:
+    - server/.jscpd.json (new) & web/.jscpd.json (new): jscpd copy-paste
+      detector configs (5% duplication threshold, minLines 5, minTokens 50,
+      console + json reporters, ignores node_modules/dist). Web config also
+      covers tsx/jsx.
+    - server/package.json & web/package.json: added "dupcheck" scripts
+      (jscpd src) and jscpd dev dependency.
+    - package.json (root): added "dupcheck" running both apps.
+    - .gitignore: excluded generated .jscpd-report/ output.
+
+  Verification:
+    - Installed deps; `npm run dupcheck` runs in both apps.
+    - server: 0 clones. web: 2 real clones (0.73% total, under 5% threshold ->
+      passes; exceeding the threshold would fail the check).
+
+------------------------------------------------------------------------------
+3. RESULTING NEW SCRIPTS
+------------------------------------------------------------------------------
+
+Root (package.json):
+  npm run lint       -> lints server then web
+  npm run dupcheck   -> duplicate-code check for server then web
+
+Per app (server/ and web/):
+  npm run lint       -> eslint
+  npm run dupcheck   -> jscpd
+
+------------------------------------------------------------------------------
+4. SUGGESTED NEXT STEPS (highest impact remaining)
+------------------------------------------------------------------------------
+  - Add README.md and AGENTS.md documenting setup/build/test commands and the
+    required env vars (PORT, OPENAI_API_KEY, ANTHROPIC_API_KEY, AI_PROVIDER),
+    plus a .env.example (also satisfies env_template, build_cmd_doc,
+    single_command_setup, documentation_freshness).
+  - Add a test runner (Vitest) with real unit tests + coverage thresholds and
+    "test" scripts in both apps.
+  - Add Prettier (formatter) and Husky + lint-staged (pre_commit_hooks).
+  - Add a CI workflow (lint/typecheck/test/dupcheck on PRs) and Dependabot or
+    Renovate for dependency-update automation.
+==============================================================================

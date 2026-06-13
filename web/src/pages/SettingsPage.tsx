@@ -6,9 +6,11 @@ interface Props {
 }
 
 const PROVIDERS: { value: ProviderChoice; label: string; hint: string }[] = [
-  { value: "auto", label: "Auto", hint: "OpenAI if its key is set, else Anthropic, else Mock" },
+  { value: "auto", label: "Auto", hint: "OpenAI, else Anthropic, else OpenRouter, else Mock" },
   { value: "openai", label: "OpenAI", hint: "Use OpenAI chat completions" },
   { value: "anthropic", label: "Anthropic", hint: "Use Anthropic messages API" },
+  { value: "openrouter", label: "OpenRouter", hint: "Use OpenRouter (OpenAI-compatible) API" },
+  { value: "ollama", label: "Ollama (local)", hint: "Local Ollama server — air-gapped friendly, no key" },
   { value: "mock", label: "Mock", hint: "Offline deterministic summarizer (no key)" },
 ];
 
@@ -17,8 +19,12 @@ export function SettingsPage({ onProviderChange }: Props) {
   const [provider, setProvider] = useState<ProviderChoice>("auto");
   const [openaiKey, setOpenaiKey] = useState("");
   const [anthropicKey, setAnthropicKey] = useState("");
+  const [openrouterKey, setOpenrouterKey] = useState("");
   const [openaiModel, setOpenaiModel] = useState("");
   const [anthropicModel, setAnthropicModel] = useState("");
+  const [openrouterModel, setOpenrouterModel] = useState("");
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState("");
+  const [ollamaModel, setOllamaModel] = useState("");
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [toast, setToast] = useState<{ ok: boolean; msg: string } | null>(null);
@@ -28,6 +34,9 @@ export function SettingsPage({ onProviderChange }: Props) {
     setProvider(c.provider);
     setOpenaiModel(c.openaiModel);
     setAnthropicModel(c.anthropicModel);
+    setOpenrouterModel(c.openrouterModel);
+    setOllamaBaseUrl(c.ollamaBaseUrl);
+    setOllamaModel(c.ollamaModel);
     onProviderChange?.(c.activeProvider);
   };
 
@@ -48,14 +57,19 @@ export function SettingsPage({ onProviderChange }: Props) {
         provider,
         openaiModel: openaiModel || undefined,
         anthropicModel: anthropicModel || undefined,
+        openrouterModel: openrouterModel || undefined,
+        ollamaBaseUrl: ollamaBaseUrl || undefined,
+        ollamaModel: ollamaModel || undefined,
         // only send keys when the user typed something new
         ...(openaiKey ? { openaiApiKey: openaiKey } : {}),
         ...(anthropicKey ? { anthropicApiKey: anthropicKey } : {}),
+        ...(openrouterKey ? { openrouterApiKey: openrouterKey } : {}),
       };
       const updated = await api.updateSettings(patch);
       load(updated);
       setOpenaiKey("");
       setAnthropicKey("");
+      setOpenrouterKey("");
       flash(true, `Saved. Active provider: ${updated.activeProvider}.`);
     } catch (e) {
       flash(false, (e as Error).message);
@@ -64,13 +78,18 @@ export function SettingsPage({ onProviderChange }: Props) {
     }
   };
 
-  const handleClearKey = async (which: "openai" | "anthropic") => {
+  const handleClearKey = async (which: "openai" | "anthropic" | "openrouter") => {
+    const patch =
+      which === "openai"
+        ? { openaiApiKey: null }
+        : which === "anthropic"
+          ? { anthropicApiKey: null }
+          : { openrouterApiKey: null };
+    const labels = { openai: "OpenAI", anthropic: "Anthropic", openrouter: "OpenRouter" };
     try {
-      const updated = await api.updateSettings(
-        which === "openai" ? { openaiApiKey: null } : { anthropicApiKey: null },
-      );
+      const updated = await api.updateSettings(patch);
       load(updated);
-      flash(true, `${which === "openai" ? "OpenAI" : "Anthropic"} key cleared.`);
+      flash(true, `${labels[which]} key cleared.`);
     } catch (e) {
       flash(false, (e as Error).message);
     }
@@ -199,6 +218,30 @@ export function SettingsPage({ onProviderChange }: Props) {
         modelPlaceholder="claude-3-5-haiku-latest"
       />
 
+      <KeyField
+        label="OpenRouter API Key"
+        placeholder="sk-or-..."
+        value={openrouterKey}
+        onChange={setOpenrouterKey}
+        isSet={cfg.openrouterKeySet}
+        preview={cfg.openrouterKeyPreview}
+        source={cfg.source.openrouter}
+        onClear={() => handleClearKey("openrouter")}
+        model={openrouterModel}
+        onModelChange={setOpenrouterModel}
+        modelPlaceholder="openai/gpt-4o-mini"
+      />
+
+      <LocalProviderField
+        label="Ollama (Local Server)"
+        baseUrl={ollamaBaseUrl}
+        onBaseUrlChange={setOllamaBaseUrl}
+        baseUrlPlaceholder="http://localhost:11434"
+        model={ollamaModel}
+        onModelChange={setOllamaModel}
+        modelPlaceholder="llama3.1"
+      />
+
       <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
         <button
           onClick={handleSave}
@@ -299,6 +342,60 @@ function KeyField({
           onChange={(e) => onModelChange(e.target.value)}
           style={inputStyle}
         />
+      </div>
+    </div>
+  );
+}
+
+function LocalProviderField({
+  label, baseUrl, onBaseUrlChange, baseUrlPlaceholder, model, onModelChange, modelPlaceholder,
+}: {
+  label: string;
+  baseUrl: string;
+  onBaseUrlChange: (v: string) => void;
+  baseUrlPlaceholder: string;
+  model: string;
+  onModelChange: (v: string) => void;
+  modelPlaceholder: string;
+}) {
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    background: "var(--surface-2)",
+    border: "1px solid var(--border)",
+    color: "var(--text)",
+    borderRadius: 4,
+    padding: "8px 10px",
+    fontSize: 13,
+    fontFamily: "var(--mono)",
+  };
+  return (
+    <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+        <span style={{ fontSize: 13, fontWeight: 600 }}>{label}</span>
+        <span style={{ fontSize: 11, fontFamily: "var(--mono)", color: "var(--text-dim)" }}>no API key required</span>
+      </div>
+      <div style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 4, fontFamily: "var(--mono)" }}>Base URL</div>
+      <input
+        type="text"
+        autoComplete="off"
+        placeholder={baseUrlPlaceholder}
+        value={baseUrl}
+        onChange={(e) => onBaseUrlChange(e.target.value)}
+        style={inputStyle}
+      />
+      <div style={{ marginTop: 10 }}>
+        <div style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 4, fontFamily: "var(--mono)" }}>Model</div>
+        <input
+          type="text"
+          placeholder={modelPlaceholder}
+          value={model}
+          onChange={(e) => onModelChange(e.target.value)}
+          style={inputStyle}
+        />
+      </div>
+      <div style={{ marginTop: 8, fontSize: 11, color: "var(--text-dim)", lineHeight: 1.5 }}>
+        Select the "Ollama (local)" provider mode above to use this. Ensure the model is pulled on the local server
+        (<span style={{ fontFamily: "var(--mono)" }}>ollama pull {model || modelPlaceholder}</span>).
       </div>
     </div>
   );

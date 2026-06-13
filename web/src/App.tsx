@@ -12,6 +12,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>("runs");
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [aiProvider, setAiProvider] = useState<string>("—");
+  const [compareAllTrigger, setCompareAllTrigger] = useState(0);
 
   useEffect(() => {
     api.health().then((h) => setAiProvider(h.aiProvider)).catch(() => undefined);
@@ -73,9 +74,18 @@ export default function App() {
             onSelect={(id) => {
               setSelectedRunId(id);
             }}
+            onBatchUploaded={(totalRuns) => {
+              setSelectedRunId(null);
+              // Only jump to Compare once there are at least two runs to compare;
+              // otherwise stay on Runs so more reports can be added.
+              if (totalRuns >= 2) {
+                setTab("compare");
+                setCompareAllTrigger((n) => n + 1);
+              }
+            }}
           />
         )}
-        {tab === "compare" && <ComparePage />}
+        {tab === "compare" && <ComparePage compareAllTrigger={compareAllTrigger} />}
         {tab === "settings" && <SettingsPage onProviderChange={setAiProvider} />}
         {tab === "summary" && <SummaryPage />}
       </main>

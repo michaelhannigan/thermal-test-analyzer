@@ -10,6 +10,8 @@
     "dev:web": "npm --prefix web run dev",
     "dev": "npm run dev:server & npm run dev:web",
     "build": "npm --prefix server run build && npm --prefix web run build",
-    "typecheck": "npm --prefix server run typecheck && npm --prefix web run typecheck"
+    "typecheck": "npm --prefix server run typecheck && npm --prefix web run typecheck",
+    "lint": "npm --prefix server run lint && npm --prefix web run lint",
+    "dupcheck": "npm --prefix server run dupcheck && npm --prefix web run dupcheck"
   }
 }

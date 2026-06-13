@@ -1,9 +1,10 @@
-import type { ComparisonResult, RunAnalysis } from "../types.js";
+import type { ComparisonResult, IntelligenceReport, PortfolioReport, RunAnalysis } from "../types.js";
 
 export interface AiProvider {
   name: string;
-  summarizeRun(name: string, analysis: RunAnalysis): Promise<string>;
-  summarizeComparison(comparison: ComparisonResult): Promise<string>;
+  analyzeRun(name: string, analysis: RunAnalysis): Promise<IntelligenceReport>;
+  analyzeComparison(comparison: ComparisonResult): Promise<IntelligenceReport>;
+  analyzePortfolio(baselineName: string, comparisons: ComparisonResult[]): Promise<PortfolioReport>;
   // Lightweight connectivity/credential check; throws on failure.
   test(): Promise<void>;
 }

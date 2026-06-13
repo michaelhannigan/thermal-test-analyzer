@@ -7,7 +7,7 @@ export interface RunSummaryItem {
   summary: RunSummaryMetrics;
   anomalyCount: number;
   criticalCount: number;
-  hasAiSummary: boolean;
+  hasAiReport: boolean;
 }
 
 export interface RunSummaryMetrics {
@@ -61,7 +61,77 @@ export interface RunDetail {
     anomalies: Anomaly[];
     timeSeries: TimeSeriesPoint[];
   };
-  aiSummary?: string;
+  aiReport?: IntelligenceReport;
+}
+
+// --- Simulation Regression Intelligence Agent (SRIA) ---
+
+export type Confidence = "high" | "medium" | "low";
+export type IntelVerdict = "GO" | "CONDITIONAL" | "NO-GO";
+
+export interface BehavioralChange {
+  metric: string;
+  label: string;
+  summary: string;
+  conclusion: string;
+  direction: "improved" | "regressed" | "neutral";
+  severity: AnomalySeverity | "none";
+  magnitudePct: number;
+}
+
+export interface RootCauseHypothesis {
+  title: string;
+  detail: string;
+  confidence: Confidence;
+  evidence: string[];
+  relatedMetrics: string[];
+}
+
+export interface ValidationStep {
+  action: string;
+  rationale: string;
+  priority: "P0" | "P1" | "P2";
+}
+
+export interface IntelligenceReport {
+  kind: "run" | "comparison";
+  subject: string;
+  verdict: IntelVerdict;
+  headline: string;
+  behavioralChanges: BehavioralChange[];
+  rootCauseHypotheses: RootCauseHypothesis[];
+  validationSteps: ValidationStep[];
+  confidence: Confidence;
+  generatedBy: string;
+}
+
+export interface PortfolioRunEntry {
+  candidateId: string;
+  candidateName: string;
+  verdict: IntelVerdict;
+  overallImprovementPct: number;
+  promotable: boolean;
+  topIssue: string | null;
+}
+
+export interface PortfolioFailureMode {
+  mode: string;
+  affectedRuns: string[];
+  confidence: Confidence;
+}
+
+export interface PortfolioReport {
+  kind: "portfolio";
+  baselineName: string;
+  runCount: number;
+  verdict: IntelVerdict;
+  headline: string;
+  promotable: string[];
+  ranked: PortfolioRunEntry[];
+  commonFailureModes: PortfolioFailureMode[];
+  recommendedBaseline: string | null;
+  validationSteps: ValidationStep[];
+  generatedBy: string;
 }
 
 export interface MetricDelta {
@@ -77,6 +147,8 @@ export interface MetricDelta {
   higherIsBetter: boolean;
 }
 
+export type OverallVerdict = "improved" | "neutral" | "regressed";
+
 export interface ComparisonResult {
   baselineId: string;
   candidateId: string;
@@ -84,28 +156,70 @@ export interface ComparisonResult {
   candidateName: string;
   deltas: MetricDelta[];
   regressions: MetricDelta[];
+  overallImprovementPct: number;
+  improvedCount: number;
+  regressedCount: number;
+  overallVerdict: OverallVerdict;
+  promotable: boolean;
 }
 
-export type ProviderChoice = "auto" | "openai" | "anthropic" | "mock";
+export interface BaselineState {
+  runId: string;
+  name: string;
+  createdAt: number;
+  lockedAt: number;
+}
+
+export interface BatchUploadResult {
+  created: Array<{ id: string; name: string; createdAt: number; summary: RunSummaryMetrics; warnings: string[] }>;
+  errors: Array<{ name: string; error: string }>;
+}
+
+export interface CompareAllResult {
+  baseline: { id: string; name: string };
+  comparisons: ComparisonResult[];
+}
+
+export interface PromoteResult {
+  promoted: boolean;
+  reason?: string;
+  comparison: ComparisonResult;
+  baseline: BaselineState | null;
+}
+
+export type ProviderChoice = "auto" | "openai" | "anthropic" | "openrouter" | "mock" | "ollama";
 
 export interface PublicAiConfig {
   provider: ProviderChoice;
   activeProvider: string;
   openaiModel: string;
   anthropicModel: string;
+  openrouterModel: string;
   openaiKeySet: boolean;
   anthropicKeySet: boolean;
+  openrouterKeySet: boolean;
   openaiKeyPreview: string | null;
   anthropicKeyPreview: string | null;
-  source: { openai: "env" | "runtime" | "none"; anthropic: "env" | "runtime" | "none" };
+  openrouterKeyPreview: string | null;
+  source: {
+    openai: "env" | "runtime" | "none";
+    anthropic: "env" | "runtime" | "none";
+    openrouter: "env" | "runtime" | "none";
+  };
+  ollamaBaseUrl: string;
+  ollamaModel: string;
 }
 
 export interface SettingsPatch {
   provider?: ProviderChoice;
   openaiApiKey?: string | null;
   anthropicApiKey?: string | null;
+  openrouterApiKey?: string | null;
   openaiModel?: string;
   anthropicModel?: string;
+  openrouterModel?: string;
+  ollamaBaseUrl?: string;
+  ollamaModel?: string;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -132,8 +246,28 @@ export const api = {
     return request(`/runs`, { method: "POST", body: form });
   },
 
-  summarizeRun: (id: string) =>
-    request<{ summary: string; provider: string }>(`/runs/${id}/summarize`, { method: "POST" }),
+  uploadCsvBatch: (files: File[]): Promise<BatchUploadResult> => {
+    const form = new FormData();
+    for (const file of files) form.append("files", file);
+    return request(`/runs/batch`, { method: "POST", body: form });
+  },
+
+  analyzeRun: (id: string) =>
+    request<{ report: IntelligenceReport; provider: string }>(`/runs/${id}/intel`, { method: "POST" }),
+
+  compareAll: (baselineId?: string) =>
+    request<CompareAllResult>("/compare/all", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(baselineId ? { baselineId } : {}),
+    }),
+
+  analyzePortfolio: (baselineId?: string) =>
+    request<{ report: PortfolioReport; provider: string }>("/compare/all/intel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(baselineId ? { baselineId } : {}),
+    }),
 
   compare: (baselineId: string, candidateId: string) =>
     request<ComparisonResult>("/compare", {
@@ -142,8 +276,8 @@ export const api = {
       body: JSON.stringify({ baselineId, candidateId }),
     }),
 
-  compareSummarize: (baselineId: string, candidateId: string) =>
-    request<{ summary: string; provider: string; comparison: ComparisonResult }>("/compare/summarize", {
+  analyzeComparison: (baselineId: string, candidateId: string) =>
+    request<{ report: IntelligenceReport; provider: string; comparison: ComparisonResult }>("/compare/intel", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ baselineId, candidateId }),
@@ -160,4 +294,20 @@ export const api = {
 
   testConnection: () =>
     request<{ ok: boolean; provider: string; message: string }>("/settings/test", { method: "POST" }),
+
+  getBaseline: () => request<BaselineState | null>("/baseline"),
+
+  setBaseline: (runId: string) =>
+    request<BaselineState>("/baseline", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ runId }),
+    }),
+
+  promoteBaseline: (candidateId: string) =>
+    request<PromoteResult>("/baseline/promote", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ candidateId }),
+    }),
 };

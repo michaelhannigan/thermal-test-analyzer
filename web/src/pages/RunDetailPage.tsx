@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type RunDetail } from "../api.ts";
-import { AiSummaryPanel } from "../components/AiSummaryPanel.tsx";
+import { IntelligenceReportPanel } from "../components/IntelligenceReportPanel.tsx";
 import { AnomalyList } from "../components/AnomalyList.tsx";
 import { MetricGrid } from "../components/MetricGrid.tsx";
 import { TimeSeriesCharts } from "../components/TimeSeriesCharts.tsx";
@@ -22,13 +22,13 @@ export function RunDetailPage({ runId, onBack }: Props) {
       .catch((e: Error) => setError(e.message));
   }, [runId]);
 
-  const handleGenerateSummary = async () => {
+  const handleGenerateReport = async () => {
     if (!run) return;
     setAiLoading(true);
     try {
-      const { summary, provider } = await api.summarizeRun(run.id);
+      const { report, provider } = await api.analyzeRun(run.id);
       setAiProvider(provider);
-      setRun((prev) => (prev ? { ...prev, aiSummary: summary } : prev));
+      setRun((prev) => (prev ? { ...prev, aiReport: report } : prev));
     } finally {
       setAiLoading(false);
     }
@@ -76,10 +76,10 @@ export function RunDetailPage({ runId, onBack }: Props) {
         <TimeSeriesCharts data={run.analysis.timeSeries} />
       </Section>
 
-      <AiSummaryPanel
-        summary={run.aiSummary}
+      <IntelligenceReportPanel
+        report={run.aiReport}
         provider={aiProvider}
-        onGenerate={handleGenerateSummary}
+        onGenerate={handleGenerateReport}
         loading={aiLoading}
       />
     </div>

@@ -1,20 +1,20 @@
 import { useRef, useState } from "react";
 
 interface Props {
-  onFile: (file: File) => void;
+  onFiles: (files: File[]) => void;
   uploading: boolean;
   label?: string;
 }
 
-export function UploadZone({ onFile, uploading, label }: Props) {
+export function UploadZone({ onFiles, uploading, label }: Props) {
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (file) onFile(file);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) onFiles(files);
   };
 
   return (
@@ -37,15 +37,16 @@ export function UploadZone({ onFile, uploading, label }: Props) {
         ref={inputRef}
         type="file"
         accept=".csv,text/csv"
+        multiple
         style={{ display: "none" }}
-        onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }}
+        onChange={(e) => { const fs = Array.from(e.target.files ?? []); if (fs.length > 0) onFiles(fs); e.target.value = ""; }}
       />
       <div style={{ fontSize: 24, marginBottom: 8 }}>📂</div>
       <div style={{ fontWeight: 600, color: uploading ? "var(--text-muted)" : "var(--text)", marginBottom: 4 }}>
-        {uploading ? "Uploading…" : label ?? "Drop thermal test CSV here"}
+        {uploading ? "Uploading…" : label ?? "Drop one or more thermal test CSVs here"}
       </div>
       <div style={{ fontSize: 12, color: "var(--text-dim)" }}>
-        {uploading ? "Parsing and analyzing…" : "or click to browse"}
+        {uploading ? "Parsing and analyzing…" : "or click to browse (multiple allowed)"}
       </div>
     </div>
   );

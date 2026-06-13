@@ -75,7 +75,80 @@ export interface StoredRun {
   createdAt: number;
   frames: FrameRecord[];
   analysis: RunAnalysis;
-  aiSummary?: string;
+  aiReport?: IntelligenceReport;
+}
+
+// --- Simulation Regression Intelligence Agent (SRIA) ---
+
+export type Confidence = "high" | "medium" | "low";
+
+// Engineering decision gate produced by the agent.
+export type IntelVerdict = "GO" | "CONDITIONAL" | "NO-GO";
+
+// A meaningful, noise-filtered shift in a single metric.
+export interface BehavioralChange {
+  metric: string;
+  label: string;
+  summary: string; // concise, e.g. "Mean SNR decreased by 30.1% (18.2dB → 12.7dB) compared to the baseline."
+  conclusion: string; // actionable engineering narrative: implication, cross-metric impact, recommended action
+  direction: "improved" | "regressed" | "neutral";
+  severity: AnomalySeverity | "none";
+  magnitudePct: number;
+}
+
+export interface RootCauseHypothesis {
+  title: string;
+  detail: string;
+  confidence: Confidence;
+  evidence: string[]; // metric movements / anomalies supporting the hypothesis
+  relatedMetrics: string[];
+}
+
+export interface ValidationStep {
+  action: string;
+  rationale: string;
+  priority: "P0" | "P1" | "P2";
+}
+
+export interface IntelligenceReport {
+  kind: "run" | "comparison";
+  subject: string; // run name, or "candidate vs baseline"
+  verdict: IntelVerdict;
+  headline: string; // one-sentence actionable conclusion
+  behavioralChanges: BehavioralChange[];
+  rootCauseHypotheses: RootCauseHypothesis[];
+  validationSteps: ValidationStep[];
+  confidence: Confidence; // overall confidence in the conclusions
+  generatedBy: string; // provider name
+}
+
+export interface PortfolioRunEntry {
+  candidateId: string;
+  candidateName: string;
+  verdict: IntelVerdict;
+  overallImprovementPct: number;
+  promotable: boolean;
+  topIssue: string | null;
+}
+
+export interface PortfolioFailureMode {
+  mode: string;
+  affectedRuns: string[];
+  confidence: Confidence;
+}
+
+export interface PortfolioReport {
+  kind: "portfolio";
+  baselineName: string;
+  runCount: number;
+  verdict: IntelVerdict;
+  headline: string;
+  promotable: string[];
+  ranked: PortfolioRunEntry[];
+  commonFailureModes: PortfolioFailureMode[];
+  recommendedBaseline: string | null;
+  validationSteps: ValidationStep[];
+  generatedBy: string;
 }
 
 export interface MetricDelta {
@@ -93,6 +166,8 @@ export interface MetricDelta {
   higherIsBetter: boolean;
 }
 
+export type OverallVerdict = "improved" | "neutral" | "regressed";
+
 export interface ComparisonResult {
   baselineId: string;
   candidateId: string;
@@ -100,5 +175,19 @@ export interface ComparisonResult {
   candidateName: string;
   deltas: MetricDelta[];
   regressions: MetricDelta[];
-  aiSummary?: string;
+  // Mean of direction-aware per-metric improvement percentages (positive = better).
+  overallImprovementPct: number;
+  improvedCount: number;
+  regressedCount: number;
+  overallVerdict: OverallVerdict;
+  // True when the candidate has zero regressions AND a positive aggregate improvement.
+  promotable: boolean;
+}
+
+// Currently locked baseline run used for promotion comparisons.
+export interface BaselineState {
+  runId: string;
+  name: string;
+  createdAt: number;
+  lockedAt: number;
 }

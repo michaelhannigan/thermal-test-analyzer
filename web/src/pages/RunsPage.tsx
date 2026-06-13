@@ -1,31 +1,50 @@
 import { useEffect, useState } from "react";
-import { api, type RunSummaryItem } from "../api.ts";
+import { api, type BaselineState, type RunSummaryItem } from "../api.ts";
 import { SeverityBadge } from "../components/Badge.tsx";
 import { UploadZone } from "../components/UploadZone.tsx";
 
 interface Props {
   onSelect: (id: string) => void;
+  onBatchUploaded: (totalRuns: number) => void;
 }
 
-export function RunsPage({ onSelect }: Props) {
+export function RunsPage({ onSelect, onBatchUploaded }: Props) {
   const [runs, setRuns] = useState<RunSummaryItem[]>([]);
+  const [baseline, setBaseline] = useState<BaselineState | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fileErrors, setFileErrors] = useState<Array<{ name: string; error: string }>>([]);
   const [loading, setLoading] = useState(true);
 
-  const refresh = () => api.listRuns().then(setRuns).catch(() => undefined);
+  const refresh = () =>
+    Promise.all([api.listRuns(), api.getBaseline()])
+      .then(([rs, bl]) => {
+        setRuns(rs);
+        setBaseline(bl);
+        return rs;
+      })
+      .catch(() => undefined);
 
   useEffect(() => {
     setLoading(true);
     refresh().finally(() => setLoading(false));
   }, []);
 
-  const handleFile = async (file: File) => {
+  const handleSetBaseline = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    await api.setBaseline(id).catch(() => undefined);
+    await refresh();
+  };
+
+  const handleFiles = async (files: File[]) => {
     setUploading(true);
     setError(null);
+    setFileErrors([]);
     try {
-      await api.uploadCsv(file);
-      await refresh();
+      const result = await api.uploadCsvBatch(files);
+      setFileErrors(result.errors);
+      const rs = await refresh();
+      if (result.created.length > 0) onBatchUploaded(rs?.length ?? result.created.length);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -36,15 +55,25 @@ export function RunsPage({ onSelect }: Props) {
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     await api.deleteRun(id);
-    setRuns((prev) => prev.filter((r) => r.id !== id));
+    await refresh();
   };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <UploadZone onFile={handleFile} uploading={uploading} />
+      <UploadZone onFiles={handleFiles} uploading={uploading} />
       {error && (
         <div style={{ padding: "10px 14px", background: "var(--critical-bg)", border: "1px solid var(--critical)", borderRadius: "var(--radius)", color: "var(--critical)", fontSize: 13 }}>
           {error}
+        </div>
+      )}
+      {fileErrors.length > 0 && (
+        <div style={{ padding: "10px 14px", background: "var(--critical-bg)", border: "1px solid var(--critical)", borderRadius: "var(--radius)", color: "var(--critical)", fontSize: 13 }}>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>Some files could not be imported:</div>
+          {fileErrors.map((fe) => (
+            <div key={fe.name} style={{ fontFamily: "var(--mono)", fontSize: 12 }}>
+              {fe.name}: {fe.error}
+            </div>
+          ))}
         </div>
       )}
       <div>
@@ -78,6 +107,23 @@ export function RunsPage({ onSelect }: Props) {
                     <span style={{ fontWeight: 600, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {run.name}
                     </span>
+                    {baseline?.runId === run.id && (
+                      <span
+                        title={`Locked baseline since ${new Date(baseline.lockedAt).toLocaleString()}`}
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          fontFamily: "var(--mono)",
+                          color: "var(--warning)",
+                          border: "1px solid var(--warning)",
+                          borderRadius: 3,
+                          padding: "1px 6px",
+                          letterSpacing: "0.05em",
+                        }}
+                      >
+                        ★ BASELINE
+                      </span>
+                    )}
                     {run.criticalCount > 0 && <SeverityBadge severity="critical" />}
                     {run.criticalCount === 0 && run.anomalyCount > 0 && <SeverityBadge severity="warning" />}
                     {run.anomalyCount === 0 && <SeverityBadge severity="none" />}
@@ -91,6 +137,25 @@ export function RunsPage({ onSelect }: Props) {
                     <span style={{ color: "var(--text-dim)" }}>{new Date(run.createdAt).toLocaleTimeString()}</span>
                   </div>
                 </div>
+                {baseline?.runId !== run.id && (
+                  <button
+                    onClick={(e) => handleSetBaseline(e, run.id)}
+                    title="Set as baseline (advisory override)"
+                    style={{
+                      color: "var(--text-dim)",
+                      fontSize: 11,
+                      fontFamily: "var(--mono)",
+                      padding: "4px 8px",
+                      borderRadius: 4,
+                      border: "1px solid var(--border)",
+                      flexShrink: 0,
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "var(--warning)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-dim)")}
+                  >
+                    set baseline
+                  </button>
+                )}
                 <button
                   onClick={(e) => handleDelete(e, run.id)}
                   title="Delete run"

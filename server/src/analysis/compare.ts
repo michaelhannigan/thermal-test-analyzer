@@ -63,12 +63,29 @@ function buildDelta(spec: MetricSpec, baseline: RunSummary, candidate: RunSummar
   };
 }
 
+// Direction-aware improvement percentage for a single metric (positive = better).
+function improvementPct(d: MetricDelta): number {
+  return d.higherIsBetter ? d.percentDelta : -d.percentDelta;
+}
+
+// Minimum mean improvement (in %) required to consider a candidate genuinely better.
+const PROMOTION_EPSILON = 0.01;
+
 export function compareRuns(baseline: StoredRun, candidate: StoredRun): ComparisonResult {
   const deltas = METRICS.map((spec) => buildDelta(spec, baseline.analysis.summary, candidate.analysis.summary));
   const order = { critical: 0, warning: 1, info: 2, none: 3 } as const;
   const regressions = deltas
     .filter((d) => d.isRegression)
     .sort((a, b) => order[a.severity] - order[b.severity]);
+
+  const improvedCount = deltas.filter((d) => improvementPct(d) > 0).length;
+  const regressedCount = deltas.filter((d) => improvementPct(d) < 0).length;
+  const overallImprovementPct =
+    deltas.length > 0 ? round(deltas.reduce((sum, d) => sum + improvementPct(d), 0) / deltas.length, 2) : 0;
+
+  const overallVerdict: ComparisonResult["overallVerdict"] =
+    regressions.length > 0 ? "regressed" : overallImprovementPct > PROMOTION_EPSILON ? "improved" : "neutral";
+  const promotable = regressions.length === 0 && overallImprovementPct > PROMOTION_EPSILON;
 
   return {
     baselineId: baseline.id,
@@ -77,5 +94,10 @@ export function compareRuns(baseline: StoredRun, candidate: StoredRun): Comparis
     candidateName: candidate.name,
     deltas,
     regressions,
+    overallImprovementPct,
+    improvedCount,
+    regressedCount,
+    overallVerdict,
+    promotable,
   };
 }

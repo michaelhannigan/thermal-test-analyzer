@@ -62,11 +62,12 @@ function Intro() {
         End-to-End SDLC, Orchestrated by Factory
       </h1>
       <p style={{ fontSize: 14, color: "var(--text-muted)", lineHeight: 1.7, maxWidth: 760 }}>
-        This entire application — backend analytics engine, pluggable AI layer, sample data, and React dashboard —
-        was designed, implemented, and verified by Factory's autonomous coding agent. Factory ran the full software
-        development lifecycle as a closed agentic loop: it captured requirements directly from you, planned the work,
-        wrote and edited every file, generated test fixtures, and gated each change behind typechecks, builds, and
-        live integration tests — iterating safely as you requested new features.
+        This entire application — backend analytics engine, a five-provider AI layer, an air-gapped Simulation
+        Regression Intelligence Agent, baseline promotion, batch and portfolio workflows, sample data, and the React
+        dashboard — was designed, implemented, and verified by Factory's autonomous coding agent. Factory ran the full
+        software development lifecycle as a closed agentic loop: it captured requirements directly from you, planned
+        the work, wrote and edited every file, generated test fixtures, and gated each change behind typechecks, lint,
+        builds, and live integration tests — iterating safely across many feature waves as you requested them.
       </p>
     </div>
   );
